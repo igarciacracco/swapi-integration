@@ -14,18 +14,26 @@ Java 21 · Spring Boot 4.1 · Maven · no Lombok · 166 tests (176 with Docker).
 You need Docker, or a JDK 21+ (the Maven wrapper fetches Maven itself).
 
 ```bash
-# 1. Generate a signing key and a password hash
-export JWT_SECRET="$(openssl rand -base64 32)"
-export DEMO_PASSWORD_HASH='{bcrypt}$2a$10$.7J2clSyyeZWzuwz/N/8hOkhVu5c4eWsIi8AEGRs6DpffTaXIbbOK'
+# 1. Build once. This also downloads Spring's BCrypt, used in step 3.
+./mvnw -q -DskipTests package
 
-# 2. Run
+# 2. A random signing key
+export JWT_SECRET="$(openssl rand -base64 32)"
+
+# 3. A BCrypt hash of the demo password, made with jshell (ships with the JDK)
+JAR=$(ls ~/.m2/repository/org/springframework/security/spring-security-crypto/*/spring-security-crypto-*.jar | grep -v sources | head -1)
+export DEMO_PASSWORD_HASH="$(echo 'System.out.println("{bcrypt}" + org.springframework.security.crypto.bcrypt.BCrypt.hashpw("demo-password-2026", org.springframework.security.crypto.bcrypt.BCrypt.gensalt()))' \
+  | jshell -q --class-path "$JAR" | grep -o '{bcrypt}.*')"
+
+# 4. Run
 ./mvnw spring-boot:run
 ```
 
-The hash above is for the password `demo-password-2026`. Generate your own with:
+The demo login is `demo` / `demo-password-2026`; change it in step 3 to pick your own password.
+With Docker or Apache's `htpasswd` instead of a JDK, the hash comes from:
 
 ```bash
-htpasswd -nbBC 10 "" 'your-password' | tr -d ':\n' | sed 's/^/{bcrypt}/'
+docker run --rm httpd:2.4-alpine htpasswd -nbBC 10 "" 'demo-password-2026' | tr -d ':\n' | sed 's/^/{bcrypt}/'
 ```
 
 > **Quote the hash in single quotes.** A BCrypt hash contains `$2a$10$`, and an unquoted
@@ -305,9 +313,10 @@ Render's free web service is the recommended host. The challenge brief's suggest
 date: Heroku has had no free tier since November 2022, and Vercel runs serverless functions
 rather than a long-lived JVM.
 
-1. New → Web Service → connect this repo → **Docker**.
-2. Set `JWT_SECRET` and `DEMO_PASSWORD_HASH` as environment variables in the dashboard.
-3. Health check path: `/actuator/health`.
+The repo includes a [`render.yaml`](render.yaml) Blueprint, so setup is: **New → Blueprint →**
+pick this repo **→ Apply**. It creates a free Docker web service with the health check on
+`/actuator/health`, generates a random `JWT_SECRET`, sets the demo `DEMO_PASSWORD_HASH`, and only
+deploys a push to `main` after CI passes.
 
 > **Expect the first request after an idle period to take ~30 seconds.** Render's free tier
 > sleeps after 15 minutes and a JVM cold start on 0.1 CPU is slow. Spring AOT or a GraalVM

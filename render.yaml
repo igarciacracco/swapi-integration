@@ -1,0 +1,17 @@
+# Render Blueprint: New -> Blueprint -> pick this repo, and Render creates the service below.
+services:
+  - type: web
+    name: swapi-integration
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    # Deploy a push to main only after its GitHub checks (CI) pass.
+    autoDeployTrigger: checksPass
+    envVars:
+      # Render generates a random 256-bit base64 value once and keeps it across deploys.
+      - key: JWT_SECRET
+        generateValue: true
+      # Demo login: demo / demo-password-2026. Not a real service, so the hash is public.
+      - key: DEMO_PASSWORD_HASH
+        value: "{bcrypt}$2a$10$.7J2clSyyeZWzuwz/N/8hOkhVu5c4eWsIi8AEGRs6DpffTaXIbbOK"
