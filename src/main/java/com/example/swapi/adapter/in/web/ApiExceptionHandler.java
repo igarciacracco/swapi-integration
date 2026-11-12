@@ -34,7 +34,7 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     private static final URI VALIDATION_TYPE = URI.create("urn:swapi:error:validation");
     private static final URI UPSTREAM_TYPE = URI.create("urn:swapi:error:upstream");
     private static final URI INTERNAL_TYPE = URI.create("urn:swapi:error:internal");
-    private static final URI UNAUTHORIZED_TYPE = URI.create("urn:swapi:error:unauthorized");
+    static final URI UNAUTHORIZED_TYPE = URI.create("urn:swapi:error:unauthorized");
     private static final URI CONFLICT_TYPE = URI.create("urn:swapi:error:username-taken");
 
     @ExceptionHandler(ResourceNotFoundException.class)
@@ -110,14 +110,19 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
-    /** Overrides the framework handler so validation errors use the same problem shape. */
+    /**
+     * Overrides the framework handler so validation errors use the same problem shape. A value
+     * that cannot be converted (page=abc) gets a fixed message: the framework's names Java types.
+     */
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException e,
                                                                   HttpHeaders headers,
                                                                   HttpStatusCode status,
                                                                   WebRequest request) {
         String detail = e.getBindingResult().getFieldErrors().stream()
-                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .map(error -> error.getField() + ": " + (error.isBindingFailure()
+                        ? error.getField() + " has an invalid value"
+                        : error.getDefaultMessage()))
                 .distinct()
                 .collect(Collectors.joining("; "));
 

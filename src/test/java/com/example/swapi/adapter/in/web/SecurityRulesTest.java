@@ -15,11 +15,15 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -49,14 +53,25 @@ class SecurityRulesTest {
     @ValueSource(strings = {"/api/v1/people", "/api/v1/people/1"})
     @DisplayName("no token means 401, not 403: we do not know who you are yet")
     void withoutATokenIsUnauthorized(String path) throws Exception {
-        mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get(path))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("WWW-Authenticate", startsWith("Bearer")))
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.title").value("Authentication required"))
+                .andExpect(jsonPath("$.detail").value("A bearer token is required."))
+                .andExpect(jsonPath("$.instance").value(path));
     }
 
     @Test
     @DisplayName("a valid token without catalog:read is 403: we know who you are, you may not")
     void wrongScopeIsForbidden() throws Exception {
         mockMvc.perform(get("/api/v1/people").with(jwt().authorities(() -> "SCOPE_other:scope")))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.title").value("Access denied"))
+                .andExpect(jsonPath("$.type").value("urn:swapi:error:forbidden"));
     }
 
     @Test
@@ -79,7 +94,10 @@ class SecurityRulesTest {
     @DisplayName("a garbage bearer token is rejected, not ignored")
     void malformedTokenIsUnauthorized() throws Exception {
         mockMvc.perform(get("/api/v1/people").header("Authorization", "Bearer not-a-real-jwt"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("WWW-Authenticate", startsWith("Bearer")))
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.detail").value("The bearer token is invalid or expired."));
     }
 
     @Test
@@ -107,9 +125,7 @@ class SecurityRulesTest {
     @DisplayName("deny by default: an unmapped path is refused even with a valid token")
     void unmappedPathsAreDeniedByDefault() throws Exception {
         mockMvc.perform(post("/api/v1/people").with(jwt().authorities(() -> "SCOPE_" + SCOPE)))
-                .andExpect(result ->
-                        org.assertj.core.api.Assertions.assertThat(
-                                        result.getResponse().getStatus())
-                                .isIn(403, 405));
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"));
     }
 }

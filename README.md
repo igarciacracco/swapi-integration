@@ -9,6 +9,21 @@ Java 21 · Spring Boot 4.1 · Maven · no Lombok · 166 tests (176 with Docker).
 
 ---
 
+## Try it live
+
+Deployed at **<https://swapi-integration-419b.onrender.com>**. Open the
+**[Swagger UI](https://swapi-integration-419b.onrender.com/swagger-ui.html)**, call `POST /api/v1/auth/login` with
+`demo` / `demo-password-2026`, click **Authorize** and paste the `accessToken`. Or with curl:
+
+```bash
+TOKEN=$(curl -s -X POST https://swapi-integration-419b.onrender.com/api/v1/auth/login   -H 'Content-Type: application/json'   -d '{"username":"demo","password":"demo-password-2026"}' | jq -r .accessToken)
+curl -s -H "Authorization: Bearer $TOKEN" 'https://swapi-integration-419b.onrender.com/api/v1/films?page=2&size=2' | jq
+```
+
+> The free instance sleeps after 15 idle minutes, so **the first request can take ~30 seconds**.
+
+---
+
 ## Run it in two minutes
 
 You need Docker, or a JDK 21+ (the Maven wrapper fetches Maven itself).
@@ -91,11 +106,11 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/v1/people/99
 # Validation and auth failures, both as RFC 9457 problem+json.
 curl -s -H "Authorization: Bearer $TOKEN" \
   'http://localhost:8080/api/v1/people?size=500' | jq
-curl -s -i http://localhost:8080/api/v1/people | head -1          # 401
+curl -s http://localhost:8080/api/v1/people | jq                  # 401
 ```
 
-There is no hosted instance: run it locally as shown above. See [Deploying](#deploying) to host
-your own.
+Every command also works against the [live instance](#try-it-live): replace
+`http://localhost:8080` with its URL.
 
 ---
 
@@ -131,15 +146,20 @@ your own.
 
 | Status | When |
 | --- | --- |
-| 400 | Bad `page`/`size`/`name`, or a malformed login body |
-| 401 | Missing, invalid or expired token; wrong credentials |
-| 403 | Valid token without the `catalog:read` scope |
+| 400 | Bad `page`/`size`/`id`/`name` (out of range or the wrong type), or a malformed login body |
+| 401 | No token, an invalid or expired token, or wrong credentials on login |
+| 403 | Valid token without the `catalog:read` scope, or a method no rule allows (deny by default) |
 | 404 | Unknown path, or unknown id on a **detail** endpoint |
 | 502 | SWAPI returned an error |
 | 504 | SWAPI did not answer in time |
 
 A 502 or 504 body carries a `correlationId`. The upstream status and cause are in the server log
 under that id and deliberately never in the response.
+
+401 and 403 are decided in Spring Security's filter chain, before any controller or
+`@RestControllerAdvice` runs, so `ProblemDetailsSecurityHandler` writes them in the same shape. It
+keeps the standard `WWW-Authenticate: Bearer` challenge, and its detail says only whether a token
+was sent, never why it was rejected. No error body names a Java type or an upstream detail.
 
 ---
 
@@ -309,9 +329,9 @@ runtime image on `eclipse-temurin:21-jre-alpine`, running as a non-root user, wi
 roughly half the size (525 MB → 355 MB), which shortens the image pull on a host that
 cold-starts often.
 
-Render's free web service is the recommended host. The challenge brief's suggestions are out of
-date: Heroku has had no free tier since November 2022, and Vercel runs serverless functions
-rather than a long-lived JVM.
+It runs on Render's free web service at <https://swapi-integration-419b.onrender.com>. The
+challenge brief's suggestions are out of date: Heroku has had no free tier since November 2022,
+and Vercel runs serverless functions rather than a long-lived JVM.
 
 The repo includes a [`render.yaml`](render.yaml) Blueprint, so setup is: **New → Blueprint →**
 pick this repo **→ Apply**. It creates a free Docker web service with the health check on

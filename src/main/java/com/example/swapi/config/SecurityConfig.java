@@ -1,5 +1,6 @@
 package com.example.swapi.config;
 
+import com.example.swapi.adapter.in.web.ProblemDetailsSecurityHandler;
 import com.example.swapi.adapter.in.web.TokenService;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -38,6 +39,8 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain apiFilterChain(HttpSecurity http) throws Exception {
+        // 401 and 403 bodies in the same problem+json shape as every other error.
+        ProblemDetailsSecurityHandler problems = new ProblemDetailsSecurityHandler();
         return http
                 // Tokens travel in a header, not a cookie, so there is nothing to forge.
                 // Re-enable CSRF if the app ever moves to cookie auth.
@@ -58,7 +61,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/**").hasAuthority(CATALOG_READ)
                         // Deny by default: a new endpoint stays locked until it is opened here.
                         .anyRequest().denyAll())
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+                .exceptionHandling(errors -> errors
+                        .authenticationEntryPoint(problems)
+                        .accessDeniedHandler(problems))
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(Customizer.withDefaults())
+                        .authenticationEntryPoint(problems)
+                        .accessDeniedHandler(problems))
                 .build();
     }
 

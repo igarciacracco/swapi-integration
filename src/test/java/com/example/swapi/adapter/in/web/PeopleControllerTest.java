@@ -120,7 +120,9 @@ class PeopleControllerTest {
     @DisplayName("a non-numeric page is a 400, not a 500")
     void nonNumericPageIsRejected() throws Exception {
         mockMvc.perform(get("/api/v1/people").param("page", "abc"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.detail").value("page: page has an invalid value"));
     }
 
     @Test
