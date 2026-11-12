@@ -1,0 +1,19 @@
+# Local Postgres for the registration feature.
+#
+# Deliberately local-only. Render's free disk is wiped on restart and its free Postgres expires
+# after 30 days, so the deployed demo runs without a database and the catalog works either way.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: swapi
+      POSTGRES_USER: swapi
+      POSTGRES_PASSWORD: swapi
+    ports:
+      - "5432:5432"
+    healthcheck:
+      # The app waits for this, so `docker compose up` is enough: no sleep-and-hope.
+      test: ["CMD-SHELL", "pg_isready -U swapi -d swapi"]
+      interval: 5s
+      timeout: 3s
+      retries: 10

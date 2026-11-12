@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: swapi-integration
+  # No datasource by default: the core API persists nothing. The postgres profile
+  # re-enables these auto-configurations (see application-postgres.yml).
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+      - org.springframework.boot.jdbc.autoconfigure.JdbcClientAutoConfiguration
+      - org.springframework.boot.jdbc.autoconfigure.JdbcTemplateAutoConfiguration
+      - org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  port: ${PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      access: read-only
+
+swapi:
+  base-url: https://www.swapi.tech/api
+  connect-timeout: 2s
+  read-timeout: 5s
+  user-agent: swapi-integration/1.0 (star wars api challenge)
+
+app:
+  jwt:
+    # No default: a shared default secret would let anyone mint tokens.
+    # Generate one with: openssl rand -base64 32
+    secret: ${JWT_SECRET}
+    ttl: 1h
+    issuer: https://swapi-integration.example.com
+  users:
+    - username: ${DEMO_USERNAME:demo}
+      password-hash: ${DEMO_PASSWORD_HASH}
+  cache:
+    maximum-size: 1000
+    time-to-live: 1h

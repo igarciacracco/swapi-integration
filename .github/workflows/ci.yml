@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build and test
+        run: ./mvnw -B verify
+
+      # Testcontainers tests are excluded from `verify` so the build runs on a laptop with no
+      # Docker daemon. GitHub runners have one, so CI runs them as a separate step and the
+      # registration feature is covered on every push.
+      - name: Testcontainers tests (registration)
+        run: ./mvnw -B test -Pdocker
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: target/site/jacoco/
+          if-no-files-found: ignore
